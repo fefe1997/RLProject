@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  train:
+    build:
+      context: ./train
+      dockerfile: Dockerfile
+    image: train
+    container_name: train
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all

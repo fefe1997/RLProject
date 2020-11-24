@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import make_env, Storage
-from model import Encoder, Policy
+from model import NatureDQN
+from policy import Policy
 
 # Hyperparameters
 total_steps = 8e6
@@ -27,7 +28,7 @@ in_channels = env.observation_space.shape[0]
 feature_dim = 512
 num_actions = env.action_space.n
 
-encoder = Encoder(in_channels, feature_dim)
+encoder = NatureDQN(in_channels, feature_dim)
 policy = Policy(encoder, feature_dim, num_actions)
 policy.cuda()
 
@@ -112,4 +113,4 @@ while step < total_steps:
   print(f'Step: {step}\tMean reward: {storage.get_reward()}')
 
 print('Completed training!')
-torch.save(policy.state_dict, 'checkpoint.pt')
+torch.save(policy.state_dict, './models/checkpoint.pt')
