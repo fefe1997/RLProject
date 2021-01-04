@@ -1,9 +1,11 @@
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import make_env, Storage
-from model import NatureDQN
+from utils import make_env, Storage, moving_average
+from model import NatureDQN, Impala
 from policy import Policy
+import os
 
 # Hyperparameters
 total_steps = 8e6
@@ -28,7 +30,15 @@ in_channels = env.observation_space.shape[0]
 feature_dim = 512
 num_actions = env.action_space.n
 
-encoder = NatureDQN(in_channels, feature_dim)
+model = os.getenv('MODEL', False)
+
+# if model == 'NatureDQN':
+encoder = Impala(in_channels, feature_dim)
+
+#if model == 'Impala':
+ # encoder = Impala(in_channels, feature_dim)
+
+
 policy = Policy(encoder, feature_dim, num_actions)
 policy.cuda()
 
@@ -47,6 +57,8 @@ storage = Storage(
 # Run training
 obs = env.reset()
 step = 0
+rewards, losses = [], []
+
 while step < total_steps:
 
   # Use policy to collect data for num_steps steps
@@ -84,33 +96,36 @@ while step < total_steps:
       new_dist, new_value = policy(b_obs)
       new_log_prob = new_dist.log_prob(b_action)
 
-      # Clipped policy objective
-      ratio = torch.exp(new_log_prob - b_log_prob)
-      p1 = ratio * b_advantage
-      p2 = torch.clamp(ratio,1 - eps, 1 + eps) * b_advantage
-      pi_loss = - torch.min(p1,p2)
-
-      # Clipped value function objective
-      loss_function = nn.MSELoss()
-      value_loss = value_coef * loss_function(new_value, b_returns)
-
-      # Entropy loss
-      entropy_loss = - entropy_coef * new_dist.entropy()
-
-      # Backpropagate losses
-      loss = pi_loss + value_loss + entropy_loss
+      loss = policy.calculate_loss(b_log_prob, b_returns, b_advantage, new_log_prob, new_dist, new_value, eps, value_coef, entropy_coef)
       loss.mean().backward()
 
       # Clip gradients
       torch.nn.utils.clip_grad_norm_(policy.parameters(), grad_eps)
 
       # Update policy
+      losses.append(loss.mean().item())
       optimizer.step()
       optimizer.zero_grad()
 
   # Update stats
   step += num_envs * num_steps
   print(f'Step: {step}\tMean reward: {storage.get_reward()}')
+  rewards.append(storage.get_reward())
 
 print('Completed training!')
-torch.save(policy.state_dict, './models/checkpoint.pt')
+torch.save(policy.state_dict(), 'checkpoint.pt')
+
+# plot results
+
+plt.figure(figsize=(16,6))
+plt.subplot(211)
+plt.plot(range(1, len(rewards)+1), moving_average(rewards), label='training reward')
+plt.xlabel('episode'); plt.ylabel('reward')
+plt.xlim((0, len(rewards)))
+plt.legend(loc=4); plt.grid()
+plt.subplot(212)
+plt.plot(range(1, len(losses)+1), moving_average(losses), label='loss')
+plt.xlabel('episode'); plt.ylabel('loss')
+plt.xlim((0, len(losses)))
+plt.legend(loc=4); plt.grid()
+plt.tight_layout(); plt.show()

@@ -533,3 +533,8 @@ class TensorEnv(VecEnvWrapper):
 	def reset(self):
 		obs = self.venv.reset()
 		return torch.Tensor(obs)
+
+def moving_average(a, n=10) :
+    ret = np.cumsum(a, dtype=float)
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret / n

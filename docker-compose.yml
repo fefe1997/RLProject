@@ -8,3 +8,12 @@ services:
     container_name: train
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - ./train/train.py:/train/train.py
+      - ./train/policy.py:/train/policy.py
+      - ./train/model.py:/train/model.py
+    networks:
+      - rl_network
+networks:
+  rl_network:
